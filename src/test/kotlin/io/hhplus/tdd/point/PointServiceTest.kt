@@ -22,6 +22,41 @@ class PointServiceTest {
         pointService = PointService(userPointTable, pointHistoryTable)
     }
 
+    /**
+     * [Custom Command] 유저의 초기 포인트 설정
+     */
+    private fun givenUserPoint(userId: Long, amount: Long) {
+        userPointTable.insertOrUpdate(userId, amount)
+    }
+
+    /**
+     * [Custom Command] 특정 로직 실패 시 IllegalArgumentException과 예외 메시지 검증
+     * 고차함수 : 함수를 파라미터로 받음
+     * `block: () -> Unit` : 파라미터로 함수(코드 덩어리)를 받는다는 의미
+     * () : 인자를 받지 않음
+     * Unit : 이 함수는 반환값이 없음
+     * `{ block() }` : 넘겨받은 함수 block를 실행하는 코드
+     */
+    private fun assertError(message: String, block: () -> Unit) {
+        assertThatThrownBy { block() } // 1. 전달받은 코드 블록 실행
+            .isInstanceOf(IllegalArgumentException::class.java) // 2. 예외 타입 검증
+            .hasMessageContaining(message)  // 3. 예외 메시지 검증
+    }
+
+    /**
+     * [Custom Command] 포인트 내역 객체의 필드 검증
+     */
+    private fun assertHistory(
+        history: PointHistory,
+        expectedUserId: Long,
+        expectedType: TransactionType,
+        expectedAmount: Long
+    ) {
+        assertThat(history.userId).isEqualTo(expectedUserId)
+        assertThat(history.type).isEqualTo(expectedType)
+        assertThat(history.amount).isEqualTo(expectedAmount)
+    }
+
     @Nested
     @DisplayName("포인트 조회 기능")
     // 코틀린의 중첩 클래스는 기본적으로 static이기 떄문에 바깥 클래스(PointServiceTest)의 멤버에 접근하려면 inner를 붙여야 한다.
@@ -32,7 +67,7 @@ class PointServiceTest {
             // given
             val userId = 1L
             val expectedPoint = 1000L
-            userPointTable.insertOrUpdate(userId, expectedPoint)
+            givenUserPoint(userId, expectedPoint)
 
             // when
             val result = pointService.getPoint(userId)
@@ -53,7 +88,7 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 1000L
             val chargeAmount = 5000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when
             val result = pointService.chargePoint(userId, chargeAmount)
@@ -71,7 +106,7 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 5_000_000L
             val chargeAmount = 5_000_000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when
             val result = pointService.chargePoint(userId, chargeAmount)
@@ -88,10 +123,9 @@ class PointServiceTest {
             val invalidAmount = 500L
 
             // when & then
-            assertThatThrownBy {
+            assertError("1000원 미만은 충전할 수 없습니다.") {
                 pointService.chargePoint(userId, invalidAmount)
-            }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("1000원 미만은 충전할 수 없습니다.")
-
+            }
         }
 
         @Test
@@ -102,13 +136,12 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 9_000_000L
             val chargeAmount = 1_000_001L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when & then
-            assertThatThrownBy {
+            assertError("충전 후 포인트가 10,000,000를 초과할 수 없습니다.") {
                 pointService.chargePoint(userId, chargeAmount)
-            }.isInstanceOf(IllegalArgumentException::class.java)
-                .hasMessageContaining("충전 후 포인트가 10,000,000를 초과할 수 없습니다.")
+            }
         }
 
         @Test
@@ -119,11 +152,12 @@ class PointServiceTest {
             val negativeAmount = -1000L
 
             // when & then
-            assertThatThrownBy {
+            assertError("1000원 미만은 충전할 수 없습니다.") {
                 pointService.chargePoint(userId, negativeAmount)
-            }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("1000원 미만은 충전할 수 없습니다.")
+            }
         }
     }
+
 
     @Nested
     @DisplayName("포인트 사용 기능")
@@ -135,7 +169,7 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 5000L
             val usePoint = 1000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when
             val result = pointService.usePoint(userId, usePoint)
@@ -152,7 +186,7 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 5000L
             val usePoint = 5000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when
             val result = pointService.usePoint(userId, usePoint)
@@ -169,12 +203,12 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 1_000_000L
             val userAmount = 0L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when & then
-            assertThatThrownBy {
+            assertError("0포인트 미만은 사용할 수 없습니다.") {
                 pointService.usePoint(userId, userAmount)
-            }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("0포인트 미만은 사용할 수 없습니다.")
+            }
         }
 
         @Test
@@ -184,12 +218,12 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 5_000L
             val useAmount = 6_000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when & then
-            assertThatThrownBy {
+            assertError("보유 포인트가 부족합니다.") {
                 pointService.usePoint(userId, useAmount)
-            }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("보유 포인트가 부족합니다.")
+            }
         }
 
         @Test
@@ -199,12 +233,12 @@ class PointServiceTest {
             val userId = 1L
             val initialPoint = 5_000_000L
             val negativeAmount = -1000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // when & then
-            assertThatThrownBy {
+            assertError("0포인트 미만은 사용할 수 없습니다.") {
                 pointService.usePoint(userId, negativeAmount)
-            }.isInstanceOf(IllegalArgumentException::class.java).hasMessageContaining("0포인트 미만은 사용할 수 없습니다.")
+            }
         }
     }
 
@@ -217,7 +251,7 @@ class PointServiceTest {
             // given
             val userId = 1L
             val initialPoint = 10_000L
-            userPointTable.insertOrUpdate(userId, initialPoint)
+            givenUserPoint(userId, initialPoint)
 
             // 조회를 위한 충전 및 사용 실행
             pointService.chargePoint(userId, 5_000L)
@@ -229,15 +263,9 @@ class PointServiceTest {
             // then
             assertThat(histories).hasSize(2)    // 충전 및 사용 2개의 내역
 
-            // 첫 번째 내역 검증 (충전)
-            assertThat(histories[0].userId).isEqualTo(userId)
-            assertThat(histories[0].type).isEqualTo(TransactionType.CHARGE)
-            assertThat(histories[0].amount).isEqualTo(5_000L)
-
-            // 두 번째 내역 검증 (사용)
-            assertThat(histories[1].userId).isEqualTo(userId)
-            assertThat(histories[1].type).isEqualTo(TransactionType.USE)
-            assertThat(histories[1].amount).isEqualTo(3_000L)
+            // Custom Command로 내역 상세 검증
+            assertHistory(histories[0], userId, TransactionType.CHARGE, 5_000L)
+            assertHistory(histories[1], userId, TransactionType.USE, 3_000L)
 
         }
 
@@ -261,8 +289,8 @@ class PointServiceTest {
             val userId1 = 1L
             val userId2 = 2L
             val initialPoint = 10_000L
-            userPointTable.insertOrUpdate(userId1, initialPoint)
-            userPointTable.insertOrUpdate(userId2, initialPoint)
+            givenUserPoint(userId1, initialPoint)
+            givenUserPoint(userId2, initialPoint)
 
             // 각 유저가 충전
             pointService.chargePoint(userId1, 5_000L)
@@ -277,7 +305,6 @@ class PointServiceTest {
             // allMatch - 리스트의 모든 요소가 조건을 만족하는지 확인,
             // it - 람다식 단일 파라미터 기본 이름
             assertThat(histories).allMatch { it.userId == userId1 }
-
         }
     }
 }
